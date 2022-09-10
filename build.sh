@@ -1,5 +1,6 @@
 rm -Rf build
 mkdir build
-gcc -o build/client echo_client_nonblocking.c
 gcc -o build/server echo_server_epoll.c
-gcc -o build/gl_client -lraylib echo_client_graphical.c
+gcc -c generator.c
+gcc -c game_client.c
+gcc -o build/game_client -lraylib generator.o game_client.o
