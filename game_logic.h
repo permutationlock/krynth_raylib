@@ -6,15 +6,7 @@ struct game_state_t {
 
 typedef struct game_state_t game_state_t;
 
-struct move_t {
-    int reveal;
-    int ask;
-    int dig;
-};
-
-typedef struct move_t move_t;
-
 int update_game(
-    game_state_t* gstate, const move_t move,
+    game_state_t* gstate, int ask,
     const game_data_t* gdata
 );

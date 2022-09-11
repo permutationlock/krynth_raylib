@@ -6,11 +6,9 @@ import (
 )
 
 func main() {
-
     http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
         http.ServeFile(w, r, "build/"+r.URL.Path[1:])
     })
 
     log.Fatal(http.ListenAndServe(":8081", nil))
-
 }

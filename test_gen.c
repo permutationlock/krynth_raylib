@@ -8,8 +8,9 @@
 #define SAMPLES 100000
 
 int main() {
-    int good_clues[5];
-    int good_clue_pairs[5][5];
+    int good_clues1[CTYPES] = { 0 };
+    int good_clues2[CTYPES] = { 0 };
+    int good_clue_pairs[CTYPES][CTYPES] = { 0 };
 
     srand(clock());
     clock_t start = clock(), diff;
@@ -17,12 +18,12 @@ int main() {
         game_data_t game = generate_game(rand());
         enum clue_type c1t = game.clue_type[0];
         enum clue_type c2t = game.clue_type[1];
+        good_clues1[c1t] += 1;
+        good_clues2[c2t] += 1;
         if(c1t >= c2t) {
             c1t = c2t;
             c2t = game.clue_type[0];
         }
-        good_clues[c1t] += 1;
-        good_clues[c2t] += 1;
         good_clue_pairs[c1t][c2t] += 1;
     }
     diff = clock() - start;
@@ -33,24 +34,28 @@ int main() {
     printf("Time taken per 100 samples: %d\n\n", msec/(SAMPLES / 100));
 
     printf("Good clues by type:\n");
-    for(int i = 0; i < 5; ++i) {
+    for(int i = 0; i < CTYPES; ++i) {
         printf(" %06d", i);
     }
     printf("\n");
-    for(int i = 0; i < 5; ++i) {
-        printf(" %06d", good_clues[i]);
+    for(int i = 0; i < CTYPES; ++i) {
+        printf(" %06d", good_clues1[i]);
+    }
+    printf("\n");
+    for(int i = 0; i < CTYPES; ++i) {
+        printf(" %06d", good_clues2[i]);
     }
     printf("\n\n");
 
     printf("Good clue pairs by type:\n");
-    for(int i = 0; i < 5; ++i) {
-        for(int j = i; j < 5; ++j) {
+    for(int i = 0; i < CTYPES; ++i) {
+        for(int j = i; j < CTYPES; ++j) {
             printf("  %d, %d", i, j);
         }
     }
     printf("\n");
-    for(int i = 0; i < 5; ++i) {
-        for(int j = i; j < 5; ++j) {
+    for(int i = 0; i < CTYPES; ++i) {
+        for(int j = i; j < CTYPES; ++j) {
             printf(" %05d", good_clue_pairs[i][j]);
         }
     }

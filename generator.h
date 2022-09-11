@@ -4,13 +4,12 @@
 #define BROWS 8
 #define BCOLS 8
 #define BSIZE BROWS * BCOLS
-#define BU8SIZE (BSIZE / 8)
 #define BU32SIZE (1 + ((BSIZE - 1) / 32))
 #define TTYPES 7
-#define NCLUES 49
+#define NCLUES 63
 #define AMSIZE NCLUES * NCLUES
-#define MAXGCP 8
-#define MINANS 8
+#define MAXGCP 16
+#define MINANS 5
 
 #define MAX(x, y) (((x) > (y)) ? (x) : (y))
 #define MIN(x, y) (((x) < (y)) ? (x) : (y))
@@ -23,14 +22,18 @@
 #define TLIST6 TLIST5, 5
 #define TLIST7 TLIST6, 6
 
+#define CTYPES 7
+
 // types
 
 enum clue_type {
-    NOT_WITHIN_3,
-    NOT_WITHIN_2,
-    NOT_WITHIN_1,
-    WITHIN_1,
-    IN_A_OR_B
+    NOT_WITHIN_3 = 0,
+    WITHIN_3 = 1,
+    NOT_WITHIN_2 = 2,
+    WITHIN_2 = 3,
+    NOT_WITHIN_1 = 4,
+    WITHIN_1 = 5,
+    IN_A_OR_B = 6
 };
 
 struct clue_t {
@@ -131,6 +134,8 @@ void generate_difference_matrix(
     matrix_t* dmatrix, const matrix_t* amatrix,
     const array_t* clue_counts
 );
+
+enum clue_type get_clue_type(int index);
 
 void generate_clues(clue_list_t* clist, const map_t* map);
 

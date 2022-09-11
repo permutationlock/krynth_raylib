@@ -5,10 +5,10 @@
 
 #include "generator.h"
 
-#define DECKSIZE 30
+#define DECKSIZE (7 + 7 + 5 + 5 + 3 + 3 + 1 + 1)
 const int TDECK[DECKSIZE] = {
-    TLIST7, TLIST7, TLIST7,
-    TLIST5, TLIST3, TLIST1
+    TLIST7, TLIST7,
+    TLIST5, TLIST5, TLIST3, TLIST3, TLIST1, TLIST1
 };
 
 
@@ -34,7 +34,7 @@ void generate_map(
 
 void add_near_rec(clue_t* clue, int r, int c, int n) {
     int i = (r * BCOLS + c);
-    clue->data[i / 32] |= 1 << (i % 32);
+    clue->data[i / 32] |= (1 << (i % 32));
     if(n > 0) {
         if(c > 0) {
             add_near_rec(clue, r, c - 1, n - 1);
@@ -53,7 +53,7 @@ void add_near_rec(clue_t* clue, int r, int c, int n) {
 
 void add_near(clue_t* clue, int i, int n) { 
     int c = i % BCOLS;
-    int r = (i - c) / BCOLS;
+    int r = i / BCOLS;
     add_near_rec(clue, r, c, n);
 }
 
@@ -71,7 +71,7 @@ void add_clues(
     clue_t* res, const clue_t clue1, const clue_t clue2
 ) {
     for(int i = 0; i < BU32SIZE; ++i) {
-        res->data[i] = clue1.data[i] | clue2.data[i];
+        res->data[i] = (clue1.data[i] | clue2.data[i]);
     }
 }
 
@@ -87,7 +87,9 @@ int get_answer_index(const clue_t clue) {
         pcount = __builtin_popcount(clue.data[k]);
         count = __builtin_ctz(~(clue.data[k]));
         answer += count * (1 - done) * (1 - (pcount / 32));
+        answer += 32 * (pcount / 32) * (1 - done);
         done += 1 - (pcount / 32);
+        done += 1 - ((pcount + 1) / 32);
     }
 
     return (done == 1) ? answer : -1;
@@ -189,8 +191,20 @@ void generate_clues(clue_list_t* clist, const map_t* map) {
         ++cn;
     }
 
+    memcpy(&(clist->clue[cn]), &(clist->clue[cn - TTYPES]), TTYPES);
+    for(int i = 0; i < TTYPES; ++i) {
+        negate_clue(&(clist->clue[cn]));
+        ++cn;
+    }
+
     for(int i = 0; i < TTYPES; ++i) {
         near_clue(&(clist->clue[cn]), map, i, 2);
+        ++cn;
+    }
+
+    memcpy(&(clist->clue[cn]), &(clist->clue[cn - TTYPES]), TTYPES);
+    for(int i = 0; i < TTYPES; ++i) {
+        negate_clue(&(clist->clue[cn]));
         ++cn;
     }
 
@@ -205,7 +219,7 @@ void generate_clues(clue_list_t* clist, const map_t* map) {
         ++cn;
     }
 
-    clue_t in_clues[TTYPES];
+    clue_t in_clues[TTYPES] = { 0 };
     for(int i = 0; i < TTYPES; ++i) {
         near_clue(&(in_clues[i]), map, i, 0);
     }
@@ -225,17 +239,21 @@ enum clue_type get_clue_type(int index) {
     if(index < TTYPES) {
         return NOT_WITHIN_3;
     } else if(index < 2 * TTYPES) {
-        return NOT_WITHIN_2;
+        return WITHIN_3;
     } else if(index < 3 * TTYPES) {
-        return NOT_WITHIN_1;
+        return NOT_WITHIN_2;
     } else if(index < 4 * TTYPES) {
+        return WITHIN_2;
+    } else if(index < 5 * TTYPES) {
+        return NOT_WITHIN_1;
+    } else if(index < 6 * TTYPES) {
         return WITHIN_1;
     }
 
     return IN_A_OR_B;
 }
 
-
+/*
 int compute_max_answers_eliminated(
     const map_t* map,
     const clue_list_t* clist,
@@ -250,7 +268,7 @@ int compute_max_answers_eliminated(
     for(int i = 0; i < BSIZE; ++i) {
         int cshift = i / 32;
         uint32_t cmask = 1 << (i % 32);
-        if(clue.data[cshift] & cmask == 0) {
+        if((clue.data[cshift] & cmask) == 0) {
             continue;
         }
 
@@ -293,6 +311,7 @@ int compute_max_answers_eliminated(
 
     return max;
 }
+*/
 
 void compute_good_clue_pairs(
     clue_pair_list_t* good_pairs,
@@ -401,14 +420,11 @@ void compute_good_clue_pairs(
             break;
         }
 
-        for(int c = r + 1; c < vclist.size; ++c) {
+        for(int c = 0; c < vclist.size; ++c) {
 #ifdef DEBUG
             printf("\t\t%d: acounts = %d\n", c, acounts.data[c]);
 #endif
-            if(
-                acounts.data[c] < MINANS ||
-                amatrix.data[r * amatrix.n + c] < 0
-            ) {
+            if(amatrix.data[r * amatrix.n + c] < 0) {
                 continue;
             }
 
@@ -450,7 +466,24 @@ game_data_t generate_game(int seed) {
 #ifdef DEBUG
     printf("organizing game data\n");
 #endif
-    int index = rand() % gcps.size;
+
+    int ntypes = 0;
+    int clue_types[CTYPES * CTYPES] = { 0 };
+    int indices[CTYPES * CTYPES][MAXGCP] = { 0 }, found[CTYPES * CTYPES] = { 0 };
+    for(int i = 0; i < gcps.size; ++i) {
+        int c = get_clue_type(gcps.cpair[i].clue1);
+        int r = get_clue_type(gcps.cpair[i].clue2);
+        int d = c * CTYPES + r;
+        if(found[d] == 0) {
+            clue_types[ntypes] = d;
+            ntypes += 1;
+        }
+        indices[d][found[d]] = i;
+        found[d] += 1;
+    }
+
+    int cti = clue_types[rand() % ntypes];
+    int index = indices[cti][rand() % found[cti]];
 
     g.clue[0] = clist.clue[gcps.cpair[index].clue1];
     g.clue_type[0] = get_clue_type(gcps.cpair[index].clue1);
