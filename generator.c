@@ -5,30 +5,32 @@
 
 #include "generator.h"
 
-#define DECKSIZE (7 + 7 + 5 + 5 + 3 + 3 + 1 + 1)
-const int TDECK[DECKSIZE] = {
-    TLIST7, TLIST7,
-    TLIST5, TLIST5, TLIST3, TLIST3, TLIST1, TLIST1
-};
-
+#define DECKSIZE (7 + 5 + 3 + 1)
 
 void generate_map(
-    map_t* map, unsigned int seed
+    map_t* map, int ttypes, unsigned int seed
 ) {
     int ti;
-    int tdeck[DECKSIZE];
-    memcpy(tdeck, TDECK, DECKSIZE * sizeof(int));
+    int tdeck[DECKSIZE] = { 0 };
+
+    int j = 0;
+    for(int k = ttypes; k > 0; k -= 2) {
+        for(int t = 0; t < k; ++t) {
+            tdeck[j] = t;
+            j += 1;
+        }
+    }
 
     srand(seed);
 
     int i = 0;
-    for(; i < DECKSIZE; ++i) {
-        ti = rand() % (DECKSIZE - i);
+    for(; i < j; ++i) {
+        ti = rand() % (j - i);
         map->terrain[i] = tdeck[ti];
-        tdeck[ti] = tdeck[DECKSIZE - 1 - i];
+        tdeck[ti] = tdeck[j - 1 - i];
     }
     for(; i < BSIZE; ++i) {
-        map->terrain[i] = rand() % TTYPES;
+        map->terrain[i] = rand() % ttypes;
     }
 }
 
@@ -60,6 +62,7 @@ void add_near(clue_t* clue, int i, int n) {
 void near_clue(
     clue_t* clue, const map_t* map, int terrain, int dist
 ) {
+    memset(clue, 0, sizeof(clue_t));
     for(int i = 0; i < BSIZE; ++i) {
         if(map->terrain[i] == terrain) {
             add_near(clue, i, dist);
@@ -183,39 +186,69 @@ void generate_difference_matrix(
     }
 }
 
-void generate_clues(clue_list_t* clist, const map_t* map) {
+void generate_clues(clue_list_t* clist, int ttypes, const map_t* map) {
     int cn = 0;
     memset(clist->clue, 0, NCLUES * sizeof(clue_t));
     for(int i = 0; i < TTYPES; ++i) {
-        near_clue(&(clist->clue[cn]), map, i, 3);
+        if(i < ttypes) {
+            near_clue(&(clist->clue[cn]), map, i, 3);
+        } else {
+            near_clue(&(clist->clue[cn]), map, -1, 0);
+            negate_clue(&(clist->clue[cn]));
+        }
         ++cn;
     }
 
     memcpy(&(clist->clue[cn]), &(clist->clue[cn - TTYPES]), TTYPES);
     for(int i = 0; i < TTYPES; ++i) {
-        negate_clue(&(clist->clue[cn]));
+        if(i < ttypes) {
+            negate_clue(&(clist->clue[cn]));
+        } else {
+            near_clue(&(clist->clue[cn]), map, -1, 0);
+            negate_clue(&(clist->clue[cn]));
+        }
         ++cn;
     }
 
     for(int i = 0; i < TTYPES; ++i) {
-        near_clue(&(clist->clue[cn]), map, i, 2);
+        if(i < ttypes) {
+            near_clue(&(clist->clue[cn]), map, i, 2);
+        } else {
+            near_clue(&(clist->clue[cn]), map, -1, 0);
+            negate_clue(&(clist->clue[cn]));
+        }
         ++cn;
     }
 
     memcpy(&(clist->clue[cn]), &(clist->clue[cn - TTYPES]), TTYPES);
     for(int i = 0; i < TTYPES; ++i) {
-        negate_clue(&(clist->clue[cn]));
+        if(i < ttypes) {
+            negate_clue(&(clist->clue[cn]));
+        } else {
+            near_clue(&(clist->clue[cn]), map, -1, 0);
+            negate_clue(&(clist->clue[cn]));
+        }
         ++cn;
     }
 
     for(int i = 0; i < TTYPES; ++i) {
-        near_clue(&(clist->clue[cn]), map, i, 1);
+        if(i < ttypes) {
+            near_clue(&(clist->clue[cn]), map, i, 1);
+        } else {
+            near_clue(&(clist->clue[cn]), map, -1, 0);
+            negate_clue(&(clist->clue[cn]));
+        }
         ++cn;
     }
 
     memcpy(&(clist->clue[cn]), &(clist->clue[cn - TTYPES]), TTYPES);
     for(int i = 0; i < TTYPES; ++i) {
-        negate_clue(&(clist->clue[cn]));
+        if(i < ttypes) {
+            negate_clue(&(clist->clue[cn]));
+        } else {
+            near_clue(&(clist->clue[cn]), map, -1, 0);
+            negate_clue(&(clist->clue[cn]));
+        }
         ++cn;
     }
 
@@ -226,10 +259,15 @@ void generate_clues(clue_list_t* clist, const map_t* map) {
 
     for(int i = 0; i < TTYPES; ++i) {
         for(int j = i+1; j < TTYPES; ++j) {
-            add_clues(
-                &(clist->clue[cn]), in_clues[i], in_clues[j]
-            );
-            negate_clue(&(clist->clue[cn]));
+            if(i < ttypes &&  j < ttypes) {
+                add_clues(
+                    &(clist->clue[cn]), in_clues[i], in_clues[j]
+                );
+                negate_clue(&(clist->clue[cn]));
+            } else {
+                near_clue(&(clist->clue[cn]), map, -1, 0);
+                negate_clue(&(clist->clue[cn]));
+            }
             ++cn;
         }
     }
@@ -316,7 +354,8 @@ int compute_max_answers_eliminated(
 void compute_good_clue_pairs(
     clue_pair_list_t* good_pairs,
     const map_t* map,
-    const clue_list_t* clist
+    const clue_list_t* clist,
+    int min_ans
 ) { 
     int vclist_data[NCLUES];
     array_t vclist = { 0, vclist_data };
@@ -410,9 +449,7 @@ void compute_good_clue_pairs(
 #ifdef DEBUG
         printf("\t%d: acounts = %d\n", r, acounts.data[r]);
 #endif
-        if(
-            acounts.data[r] < MINANS
-        ) {
+        if(acounts.data[r] < min_ans) {
             continue;
         }
 
@@ -421,6 +458,9 @@ void compute_good_clue_pairs(
         }
 
         for(int c = 0; c < vclist.size; ++c) {
+            if(acounts.data[c] < 2) {
+                continue;
+            }
 #ifdef DEBUG
             printf("\t\t%d: acounts = %d\n", c, acounts.data[c]);
 #endif
@@ -441,7 +481,7 @@ void compute_good_clue_pairs(
     }
 }
 
-game_data_t generate_game(int seed) {
+game_data_t generate_game(int ttypes, int min_ans, int seed) {
     game_data_t g;
     clue_list_t clist;
     clue_pair_t gcp_data[MAXGCP];
@@ -452,15 +492,16 @@ game_data_t generate_game(int seed) {
 #ifdef DEBUG
         printf("generating map\n");
 #endif
-        generate_map(&(g.map), rand());
+        generate_map(&(g.map), ttypes, rand());
 #ifdef DEBUG
         printf("generating clues\n");
 #endif
-        generate_clues(&clist, &(g.map));
+        generate_clues(&clist, ttypes, &(g.map));
         compute_good_clue_pairs(
             &gcps,
             &(g.map),
-            &clist
+            &clist,
+            min_ans
         );
     }
 #ifdef DEBUG

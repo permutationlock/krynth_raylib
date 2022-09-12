@@ -9,7 +9,7 @@
 #define NCLUES 63
 #define AMSIZE NCLUES * NCLUES
 #define MAXGCP 16
-#define MINANS 5
+#define MINANS 6
 
 #define MAX(x, y) (((x) > (y)) ? (x) : (y))
 #define MIN(x, y) (((x) < (y)) ? (x) : (y))
@@ -95,7 +95,7 @@ typedef struct game_data_t game_data_t;
 
 // functions
 
-void generate_map(map_t* map, unsigned int seed);
+void generate_map(map_t* map, int ttypes, unsigned int seed);
 
 void add_near_rec(clue_t* clue, int r, int c, int n);
 
@@ -137,7 +137,7 @@ void generate_difference_matrix(
 
 enum clue_type get_clue_type(int index);
 
-void generate_clues(clue_list_t* clist, const map_t* map);
+void generate_clues(clue_list_t* clist, int ttypes, const map_t* map);
 
 int compute_max_answers_eliminated(
     const map_t* map,
@@ -150,9 +150,10 @@ int compute_max_answers_eliminated(
 void compute_good_clue_pairs(
     clue_pair_list_t* good_pairs,
     const map_t* map,
-    const clue_list_t* clist
+    const clue_list_t* clist,
+    int min_ans
 );
 
-game_data_t generate_game(int seed);
+game_data_t generate_game(int ttypes, int min_ans, int seed);
 
 #endif // KRYNTH_GENERATOR_HPP

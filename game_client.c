@@ -13,8 +13,15 @@
 
 #define SRADIUS 25
 
+#define MARKS_START 15
+#define MARKS_GAIN 3
+#define MIN_ANS_START 2
+#define TTYPES_START 3
+
 game_data_t game_data;
 game_state_t game_state;
+
+int level, marks, ttypes, min_ans;
 
 int mouse_has_released;
 
@@ -110,7 +117,7 @@ int getClue(int i, int j) {
 
 void drawBorder(int i, int j, Color color) {
     if(getClue(i, j) == 0) {
-        if(i % BCOLS != 0 && getClue(i - 1, j) != 0) {
+        if(i % BCOLS == 0 || getClue(i - 1, j) != 0) {
             Vector2 start = {
                 (i % BCOLS) * 60, (i / BCOLS) * 60
             };
@@ -119,7 +126,7 @@ void drawBorder(int i, int j, Color color) {
             };
             DrawLineEx(start, end, 3.0, color);
         }
-        if(i % BCOLS != (BCOLS - 1) && getClue(i + 1, j) != 0) {
+        if(i % BCOLS == (BCOLS - 1) || getClue(i + 1, j) != 0) {
             Vector2 start = {
                 (i % BCOLS) * 60 + 60, (i / BCOLS) * 60
             };
@@ -128,7 +135,7 @@ void drawBorder(int i, int j, Color color) {
             };
             DrawLineEx(start, end, 3.0, color);
         }
-        if(i / BCOLS != 0 && getClue(i - BCOLS, j) != 0) {
+        if(i / BCOLS == 0 || getClue(i - BCOLS, j) != 0) {
             Vector2 start = {
                 (i % BCOLS) * 60, (i / BCOLS) * 60
             };
@@ -137,7 +144,7 @@ void drawBorder(int i, int j, Color color) {
             };
             DrawLineEx(start, end, 3.0, color);
         }
-        if(i / BCOLS != (BROWS - 1) && getClue(i + BCOLS, j) != 0) {
+        if(i / BCOLS == (BROWS - 1) || getClue(i + BCOLS, j) != 0) {
             Vector2 start = {
                 (i % BCOLS) * 60, (i / BCOLS) * 60 + 60
             };
@@ -161,9 +168,12 @@ void drawBoard() {
     }
     {
         int mx = GetMouseX(), my = GetMouseY();
-        Vector2 v = { 60 * (mx / 60), 60 * (my / 60)  };
-        Vector2 s = { 60, 60 };
-        DrawRectangleV(v, s, BEIGE);
+        Vector2 v, s = { 60, 60 };
+        if(my < BCOLS * 60) {
+            v.x =60 * (mx / 60);
+            v. y =60 * (my / 60);
+            DrawRectangleV(v, s, BEIGE);
+        }
         if(game_state.state == 1) {
             v.x =  60 * (game_data.answer % BCOLS);
             v.y = 60 * (game_data.answer / BCOLS);
@@ -185,10 +195,25 @@ void drawBoard() {
     }
 }
 
+void drawGUI() {
+    if(game_state.state == 2) {
+        DrawText("LEVEL COMPLETE! (CLICK TO CONTINUE)", 25, 490, 20, BLACK);
+    } else if(game_state.state == 1) {
+        DrawText("GAME OVER! (CLICK TO CONTINUE)", 60, 490, 20, BLACK);
+    } else {
+        char slevel[32], smarks[32];
+        sprintf(slevel, "Level: %d", level);
+        sprintf(smarks, "Marks: %d", marks);
+        DrawText(slevel, 10, 490, 20, BLACK);
+        DrawText(smarks, 360, 490, 20, BLACK);
+    }
+}
+
 void drawFrame() {
     BeginDrawing();
     ClearBackground(RAYWHITE);
     drawBoard();
+    drawGUI();
     EndDrawing();
 }
 
@@ -198,10 +223,35 @@ void readInput() {
     if(IsMouseButtonDown(MOUSE_BUTTON_LEFT) == 1) {
         if(mouse_has_released == 1) {
             if(game_state.state == 0) {
-                update_game(&game_state, i, &game_data);
+                if(i < BSIZE) {
+                    if(marks <= 0 && getClue(i, 0) != 0) {
+                        game_state.state = 1;
+                    } else {
+                        if(getClue(i, 0) != 0) {
+                            marks -= 1;
+                        }
+                        update_game(&game_state, i, &game_data);
+                    }
+                }
             } else {
+                if(game_state.state == 1) {
+                    marks = MARKS_START;
+                    ttypes = TTYPES_START;
+                    min_ans = MIN_ANS_START;
+                    level = 1;
+                } else {
+                    marks += MARKS_GAIN;
+                    level += 1;
+                    if(level % 3 == 0 && ttypes < TTYPES) {
+                        ttypes += 1;
+                    }
+                    if(level % 3 == 0 && min_ans < MINANS) {
+                        min_ans += 1;
+                    }
+                }
+
                 memset(&game_state, 0, sizeof(game_state_t));
-                game_data = generate_game(rand());
+                game_data = generate_game(ttypes, min_ans, rand());
             }
         }
         mouse_has_released = 0;
@@ -218,11 +268,18 @@ void update() {
 
 int main(int argc, char *argv[])
 {
+    level = 1;
+    marks = MARKS_START;
+    ttypes = TTYPES_START;
+    min_ans = MIN_ANS_START;
+
+    SetTraceLogLevel(LOG_NONE);
+
     srand(time(NULL));
-    game_data = generate_game(rand());
+    game_data = generate_game(ttypes, min_ans, rand());
 
     // create a window to draw in
-    InitWindow(480, 480, "Krynth");
+    InitWindow(480, 520, "Krynth");
     SetTargetFPS(30);
 
 #ifdef __EMSCRIPTEN__

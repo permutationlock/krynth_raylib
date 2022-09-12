@@ -47,7 +47,6 @@
     </style>
   </head>
   <body>
-    <hr/>
     <figure style="overflow:visible;" id="spinner"><div class="spinner"></div><center style="margin-top:0.5em"><strong>emscripten</strong></center></figure>
     <div class="emscripten" id="status">Downloading...</div>
     <div class="emscripten">
@@ -56,18 +55,6 @@
     <div class="emscripten_border">
       <canvas class="emscripten" id="canvas" oncontextmenu="event.preventDefault()" tabindex=-1></canvas>
     </div>
-    <hr/>
-    <div class="emscripten">
-      <input type="checkbox" id="resize">Resize canvas
-      <input type="checkbox" id="pointerLock" checked>Lock/hide mouse pointer
-      &nbsp;&nbsp;&nbsp;
-      <input type="button" value="Fullscreen" onclick="Module.requestFullscreen(document.getElementById('pointerLock').checked, 
-                                                                                document.getElementById('resize').checked)">
-    </div>
-    
-    <hr/>
-    <textarea class="emscripten" id="output" rows="8"></textarea>
-    <hr>
     <script type='text/javascript'>
       var statusElement = document.getElementById('status');
       var progressElement = document.getElementById('progress');
@@ -77,8 +64,6 @@
         preRun: [],
         postRun: [],
         print: (function() {
-          var element = document.getElementById('output');
-          if (element) element.value = ''; // clear browser cache
           return function(text) {
             if (arguments.length > 1) text = Array.prototype.slice.call(arguments).join(' ');
             // These replacements are necessary if you render to raw HTML
@@ -87,10 +72,6 @@
             //text = text.replace(/>/g, "&gt;");
             //text = text.replace('\n', '<br>', 'g');
             console.log(text);
-            if (element) {
-              element.value += text + "\n";
-              element.scrollTop = element.scrollHeight; // focus on bottom
-            }
           };
         })(),
         canvas: (function() {
