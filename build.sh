@@ -1,6 +1,5 @@
 rm -Rf build
 mkdir build
-gcc -o build/server echo_server_epoll.c
 gcc -c generator.c -O2
 gcc -c game_logic.c -O2
 gcc -c game_client.c -O2
