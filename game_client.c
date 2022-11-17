@@ -11,101 +11,171 @@
 #include "generator.h"
 #include "game_logic.h"
 
-#define SRADIUS 25
-
-#define MARKS_START 15
-#define MARKS_GAIN 3
+#define BSIZE_START 3
+#define MARKS_START 6
+#define MARKS_GAIN 5
 #define MIN_ANS_START 2
 #define TTYPES_START 3
+
+extern int brows;
+extern int bcols;
+extern int bsize;
+extern int bu32size;
 
 game_data_t game_data;
 game_state_t game_state;
 
 int level, marks, ttypes, min_ans;
 
+int sradius = 25;
+int cwidth = 60;
+
 int mouse_has_released;
 
-void drawTriangle(Vector2 v) {
+void change_board_size(int n) {
+    set_board_size(n);
+    cwidth = 480 / n;
+    sradius = cwidth / 2 - 5;
+}
+
+void drawTriangle(Vector2 v, int radius) {
     v.y -= 3;
-    DrawPoly(v, 3, SRADIUS+2, 0.0, DARKGRAY);
-    DrawPoly(v, 3, SRADIUS-4, 0.0, GOLD);
+    DrawPoly(v, 3, radius+2, 0.0, DARKGRAY);
+    DrawPoly(v, 3, radius-4, 0.0, GOLD);
 }
 
-void drawTriangle2(Vector2 v) {
+void drawTriangle2(Vector2 v, int radius) {
     v.y += 3;
-    DrawPoly(v, 3, SRADIUS+2, 180.0, DARKGRAY);
-    DrawPoly(v, 3, SRADIUS-4, 180.0, RED);
+    DrawPoly(v, 3, radius+2, 180.0, DARKGRAY);
+    DrawPoly(v, 3, radius-4, 180.0, RED);
 }
 
-void drawSquare(Vector2 v) {
-    DrawPoly(v, 4, SRADIUS, 0.0, DARKGRAY);
-    DrawPoly(v, 4, SRADIUS-4, 0.0, ORANGE);
+void drawSquare(Vector2 v, int radius) {
+    DrawPoly(v, 4, radius, 0.0, DARKGRAY);
+    DrawPoly(v, 4, radius-4, 0.0, ORANGE);
 }
 
-void drawCircle(Vector2 v) { 
-    DrawCircleV(v, SRADIUS-5, DARKGRAY);
-    DrawCircleV(v, SRADIUS-8, SKYBLUE);
+void drawCircle(Vector2 v, int radius) { 
+    DrawCircleV(v, radius-5, DARKGRAY);
+    DrawCircleV(v, radius-8, SKYBLUE);
 }
 
-void drawPentagon(Vector2 v) {
-    DrawPoly(v, 5, SRADIUS-2, 180.0, DARKGRAY);
-    DrawPoly(v, 5, SRADIUS-5, 180.0, BLUE);
+void drawPentagon(Vector2 v, int radius) {
+    DrawPoly(v, 5, radius-2, 180.0, DARKGRAY);
+    DrawPoly(v, 5, radius-5, 180.0, BLUE);
 }
 
-void drawHexagon(Vector2 v) {
-    DrawPoly(v, 6, SRADIUS-3, 0.0, DARKGRAY);
-    DrawPoly(v, 6, SRADIUS-6, 0.0, GREEN);
+void drawHexagon(Vector2 v, int radius) {
+    DrawPoly(v, 6, radius-3, 0.0, DARKGRAY);
+    DrawPoly(v, 6, radius-6, 0.0, GREEN);
 }
 
-void drawDiamond(Vector2 v) {
-    DrawPoly(v, 4, SRADIUS, 45.0, DARKGRAY);
-    DrawPoly(v, 4, SRADIUS-4, 45.0, VIOLET);
+void drawDiamond(Vector2 v, int radius) {
+    DrawPoly(v, 4, radius, 45.0, DARKGRAY);
+    DrawPoly(v, 4, radius-4, 45.0, VIOLET);
 }
 
-void drawTile(int i, int value) {
-    Vector2 v = { (i % BCOLS) * 60 + 30, (i / BCOLS) * 60 + 30 };
-    switch(value) {
+void drawTerrain(Vector2 v, int radius, int terrain) {
+    switch(terrain) {
         case 0:
-            drawCircle(v);
+            drawCircle(v, radius);
             break;
         case 1:
-            drawTriangle(v);
+            drawTriangle(v, radius);
             break;
         case 2:
-            drawSquare(v);
+            drawSquare(v, radius);
             break;
         case 3:
-            drawPentagon(v);
+            drawPentagon(v, radius);
             break;
         case 4:
-            drawHexagon(v);
+            drawHexagon(v, radius);
             break;
         case 5:
-            drawTriangle2(v);
+            drawTriangle2(v, radius);
             break;
         case 6:
-            drawDiamond(v);
+            drawDiamond(v, radius);
             break;
     }
 }
 
-void drawMark(int i, int mark) {
+int drawClueDescription(int clue, int starty) {
+    clue_data_t clue_data = get_clue_data(clue);
+    int y = starty + 15, fsize = 20, radius = 25, width = 60;
+    if(clue_data.type != IN_A_OR_B) {
+        int x = 60;
+        int not = 0, dist = 0;
+        if(clue_data.type == NOT_WITHIN_3) { not = 1; dist = 3; };
+        if(clue_data.type == WITHIN_3) { not = 0; dist = 3; };
+        if(clue_data.type == NOT_WITHIN_2) { not = 1; dist = 2; };
+        if(clue_data.type == WITHIN_2) { not = 0; dist = 2; };
+        if(clue_data.type == NOT_WITHIN_1) { not = 1; dist = 1; };
+        if(clue_data.type == WITHIN_1) { not = 0; dist = 1; };
+        
+        const char* treasure_str = "the treasure is";
+        const char* not_str = " not";
+
+        DrawText(treasure_str, x, y, fsize, BLACK);
+        x += MeasureText(treasure_str, fsize);
+        if(not) {
+            DrawText(not_str, x, y, fsize, BLACK);
+            x += MeasureText(not_str, fsize);
+        }
+        char color_buff[32] = { 0 };
+        sprintf(color_buff, " within %d of", dist);
+        DrawText(color_buff, x, y, fsize, BLACK);
+        x += MeasureText(color_buff, fsize);
+        Vector2 sv = { x + (width / 2), y + radius - 12 };
+        drawTerrain(sv, radius, clue_data.color1);
+    } else { 
+        int x = 80;
+        const char* in_str = "the treasure is in";
+        const char* or_str = "or";
+        DrawText(in_str, x, y, fsize, BLACK);
+        x += MeasureText(in_str, fsize);
+        Vector2 sv = { x + (width / 2), y + radius - 12 };
+        drawTerrain(sv, radius, clue_data.color1);
+        x += width;
+        DrawText(or_str, x, y, fsize, BLACK);
+        x += MeasureText(or_str, fsize);
+        sv.x = x + (width / 2);
+        drawTerrain(sv, radius, clue_data.color2);
+    }
+    return width;
+}
+
+void drawTile(int i, int value, int starty) {
+    Vector2 v = {
+        (i % bcols) * cwidth + cwidth / 2,
+        starty + ((i / bcols)) * cwidth + cwidth / 2
+    };
+    drawTerrain(v, sradius, value);
+}
+
+void drawMark(int i, int mark, int starty) {
     if(mark == 1) {
+        int soffset = (cwidth / 2) - 6;
+        int eoffset = (cwidth / 2) + 6;
         Vector2 start = { 
-            (i % BCOLS) * 60 + 24, (i / BCOLS) * 60 + 24
+            (i % bcols) * cwidth + soffset,
+            starty + (i / bcols) * cwidth + soffset,
         };
         Vector2 end = {
-            (i % BCOLS) * 60 + 36, (i / BCOLS) * 60 + 36
+            (i % bcols) * cwidth + eoffset,
+            starty + (i / bcols) * cwidth + eoffset,
         };
         DrawLineEx(start, end, 5.0, BLACK);
-        start.x = (i % BCOLS) * 60 + 24;
-        start.y =(i / BCOLS) * 60 + 36;
-        end.x = (i % BCOLS) * 60 + 36;
-        end.y =(i / BCOLS) * 60 + 24;
+        start.x = (i % bcols) * cwidth + soffset;
+        start.y = starty + (i / bcols) * cwidth + eoffset;
+        end.x = (i % bcols) * cwidth + eoffset;
+        end.y = starty + (i / bcols) * cwidth + soffset;
         DrawLineEx(start, end, 5.0, BLACK);
     } else if(mark == -1) {
         Vector2 center = { 
-            (i % BCOLS) * 60 + 30, (i / BCOLS) * 60 + 30
+            (i % bcols) * cwidth + cwidth / 2,
+            starty + (i / bcols) * cwidth + cwidth / 2
         };
         DrawCircleV(center, 7, BLACK);
     }
@@ -115,51 +185,62 @@ int getClue(int i, int j) {
     return game_data.clue[j].data[i / 32] & (1 << (i % 32));
 }
 
-void drawBorder(int i, int j, Color color) {
+void drawBorder(int i, int j, Color color, int starty) {
     if(getClue(i, j) == 0) {
-        if(i % BCOLS == 0 || getClue(i - 1, j) != 0) {
+        if(i % bcols == 0 || getClue(i - 1, j) != 0) {
             Vector2 start = {
-                (i % BCOLS) * 60, (i / BCOLS) * 60
+                (i % bcols) * cwidth,
+                starty + (i / bcols) * cwidth
             };
             Vector2 end = {
-                (i % BCOLS) * 60, (i / BCOLS) * 60 + 60
+                (i % bcols) * cwidth,
+                starty + (i / bcols) * cwidth + cwidth
             };
             DrawLineEx(start, end, 3.0, color);
         }
-        if(i % BCOLS == (BCOLS - 1) || getClue(i + 1, j) != 0) {
+        if(i % bcols == (bcols - 1) || getClue(i + 1, j) != 0) {
             Vector2 start = {
-                (i % BCOLS) * 60 + 60, (i / BCOLS) * 60
+                (i % bcols) * cwidth + cwidth,
+                starty + (i / bcols) * cwidth
             };
             Vector2 end = {
-                (i % BCOLS) * 60 + 60, (i / BCOLS) * 60 + 60
+                (i % bcols) * cwidth + cwidth,
+                starty + (i / bcols) * cwidth + cwidth
             };
             DrawLineEx(start, end, 3.0, color);
         }
-        if(i / BCOLS == 0 || getClue(i - BCOLS, j) != 0) {
+        if(i / bcols == 0 || getClue(i - bcols, j) != 0) {
             Vector2 start = {
-                (i % BCOLS) * 60, (i / BCOLS) * 60
+                (i % bcols) * cwidth,
+                starty + (i / bcols) * cwidth
             };
             Vector2 end = {
-                (i % BCOLS) * 60 + 60, (i / BCOLS) * 60
+                (i % bcols) * cwidth + cwidth,
+                starty + (i / bcols) * cwidth
             };
             DrawLineEx(start, end, 3.0, color);
         }
-        if(i / BCOLS == (BROWS - 1) || getClue(i + BCOLS, j) != 0) {
+        if(i / bcols == (brows - 1) || getClue(i + bcols, j) != 0) {
             Vector2 start = {
-                (i % BCOLS) * 60, (i / BCOLS) * 60 + 60
+                (i % bcols) * cwidth,
+                starty + (i / bcols) * cwidth + cwidth
             };
             Vector2 end = {
-                (i % BCOLS) * 60 + 60, (i / BCOLS) * 60 + 60
+                (i % bcols) * cwidth + cwidth,
+                starty + (i / bcols) * cwidth + cwidth
             };
             DrawLineEx(start, end, 3.0, color);
         }
     }
 }
 
-void drawBoard() {
-    for(int i = 0; i < BSIZE; ++i) {
-        Vector2 v = { (i % BCOLS) * 60, (i / BCOLS) * 60 };
-        Vector2 s = { 60, 60 };
+int drawBoard(int starty) {
+    for(int i = 0; i < bsize; ++i) {
+        Vector2 v = {
+            (i % bcols) * cwidth,
+            starty + (i / bcols) * cwidth
+        };
+        Vector2 s = { cwidth, cwidth };
         if(getClue(i,0) == 0) {
             DrawRectangleV(v, s, LIGHTGRAY);
         } else if(game_state.state != 0 && getClue(i, 1) == 0) {
@@ -167,91 +248,116 @@ void drawBoard() {
         }
     }
     {
-        int mx = GetMouseX(), my = GetMouseY();
-        Vector2 v, s = { 60, 60 };
-        if(my < BCOLS * 60) {
-            v.x =60 * (mx / 60);
-            v. y =60 * (my / 60);
+        int mx = GetMouseX(), my = GetMouseY() - starty;
+        Vector2 v, s = { cwidth, cwidth };
+        if(my >= 0 && my < bcols * cwidth) {
+            v.x = cwidth * (mx / cwidth);
+            v.y = starty + cwidth * (my / cwidth);
             DrawRectangleV(v, s, BEIGE);
         }
         if(game_state.state == 1) {
-            v.x =  60 * (game_data.answer % BCOLS);
-            v.y = 60 * (game_data.answer / BCOLS);
+            v.x = cwidth * (game_data.answer % bcols);
+            v.y = starty + cwidth * (game_data.answer / bcols);
             DrawRectangleV(v, s, MAROON);
         } else if(game_state.state == 2) {
-            v.x =  60 * (game_data.answer % BCOLS);
-            v.y = 60 * (game_data.answer / BCOLS);
+            v.x = cwidth * (game_data.answer % bcols);
+            v.y = starty + cwidth * (game_data.answer / bcols);
             DrawRectangleV(v, s, LIME);
         }
     }
 
-    for(int i = 0; i < BSIZE; ++i) {
-        drawBorder(i, 0, DARKGRAY);
+    for(int i = 0; i < bsize; ++i) {
+        drawBorder(i, 0, DARKGRAY, starty);
         if(game_state.state != 0) {
-            drawBorder(i, 1, DARKGRAY);
+            drawBorder(i, 1, DARKGRAY, starty);
         }
-        drawTile(i, game_data.map.terrain[i]);
-        drawMark(i, game_state.marks[i][1]);
+        drawTile(i, game_data.map.terrain[i], starty);
+        drawMark(i, game_state.marks[i][1], starty);
     }
+    return brows * cwidth;
 }
 
-void drawGUI() {
+void drawEndMessage(int y) {
+    int x = -100;
+    char* str;
     if(game_state.state == 2) {
-        DrawText("LEVEL COMPLETE! (CLICK TO CONTINUE)", 25, 490, 20, BLACK);
+        x = 25;
+        str = "LEVEL COMPLETE! (CLICK TO CONTINUE)";
     } else if(game_state.state == 1) {
-        DrawText("GAME OVER! (CLICK TO CONTINUE)", 60, 490, 20, BLACK);
+        x = 60;
+        str = "GAME OVER! (CLICK TO CONTINUE)";
     } else {
-        char slevel[32], smarks[32];
-        sprintf(slevel, "Level: %d", level);
-        sprintf(smarks, "Marks: %d", marks);
-        DrawText(slevel, 10, 490, 20, BLACK);
-        DrawText(smarks, 360, 490, 20, BLACK);
+        return;
     }
+    int width = MeasureText(str, 20);
+    Vector2 v = { x - 2, y - 2 };
+    Vector2 sq = { width + 4, 20 + 3 };
+    DrawRectangleV(v, sq, RAYWHITE); 
+    DrawText(
+        str, x, y, 20, BLACK
+    );
 }
 
-void drawFrame() {
-    BeginDrawing();
-    ClearBackground(RAYWHITE);
-    drawBoard();
-    drawGUI();
-    EndDrawing();
+int drawGUI(int starty) {
+    if(game_state.state != 0) {
+        drawClueDescription(game_data.clue_index[1], starty);
+    } else {
+        char slevel[32] = { 0 }, smarks[32] = { 0 };
+        sprintf(slevel, "level: %d", level + 1);
+        sprintf(smarks, "marks: %d", marks);
+        DrawText(slevel, 25, starty + 15, 20, BLACK);
+        DrawText(smarks, 360, starty + 15, 20, BLACK);
+    }
+    return 60;
 }
 
-void readInput() {
-    int x = GetMouseX() / 60, y = GetMouseY() / 60;
-    int i = y * BCOLS + x;
+void readInput(int starty) {
+    int x = GetMouseX() / cwidth;
+    int y = GetMouseY() - starty;
+    if(y < 0) y = -1;
+    else y /= cwidth;
+    int i = y * bcols + x;
     if(IsMouseButtonDown(MOUSE_BUTTON_LEFT) == 1) {
-        if(mouse_has_released == 1) {
-            if(game_state.state == 0) {
-                if(i < BSIZE) {
-                    if(marks <= 0 && getClue(i, 0) != 0) {
-                        game_state.state = 1;
-                    } else {
+        if((x >= 0 && x < bcols) && (y >= 0 && y < brows)) {
+            if(mouse_has_released == 1) {
+                if(game_state.state == 0) {
+                    if(i < bsize) {
                         if(getClue(i, 0) != 0) {
                             marks -= 1;
+                        } else {
+                            marks -= 2;
                         }
                         update_game(&game_state, i, &game_data);
+                        if(game_state.state == 2) {
+                            marks += MARKS_GAIN;
+                        }
+                        if(marks < 0) {
+                            game_state.state = 1;
+                        }
                     }
-                }
-            } else {
-                if(game_state.state == 1) {
-                    marks = MARKS_START;
-                    ttypes = TTYPES_START;
-                    min_ans = MIN_ANS_START;
-                    level = 1;
                 } else {
-                    marks += MARKS_GAIN;
-                    level += 1;
-                    if(level % 3 == 0 && ttypes < TTYPES) {
-                        ttypes += 1;
+                    if(game_state.state == 1) {
+                        change_board_size(BSIZE_START);
+                        marks = MARKS_START;
+                        ttypes = TTYPES_START;
+                        min_ans = MIN_ANS_START;
+                        level = 0;
+                    } else {
+                        level += 1;
+                        if(level % 3 == 1 && ttypes < TTYPES) {
+                            ttypes += 1;
+                        }
+                        if(level % 3 == 0 && min_ans < MINANS) {
+                            min_ans += 1;
+                        }
+                        if(level % 3 == 2 && bcols < BCOLS) {
+                            change_board_size(bcols + 1);
+                        }
                     }
-                    if(level % 3 == 0 && min_ans < MINANS) {
-                        min_ans += 1;
-                    }
-                }
 
-                memset(&game_state, 0, sizeof(game_state_t));
-                game_data = generate_game(ttypes, min_ans, rand());
+                    memset(&game_state, 0, sizeof(game_state_t));
+                    game_data = generate_game(ttypes, min_ans, rand());
+                }
             }
         }
         mouse_has_released = 0;
@@ -261,14 +367,26 @@ void readInput() {
     }
 }
 
+void drawFrame() {
+    int y = 0;
+    BeginDrawing();
+    ClearBackground(RAYWHITE);
+    y += drawClueDescription(game_data.clue_index[0], y);
+    readInput(y);
+    y += drawBoard(y);
+    printf("%d\n", y);
+    y += drawGUI(y);
+    drawEndMessage(290);
+    EndDrawing();
+}
+
 void update() {
-    readInput();
     drawFrame();
 }
 
-int main(int argc, char *argv[])
-{
-    level = 1;
+int main(int argc, char *argv[]) {
+    change_board_size(BSIZE_START);
+    level = 0;
     marks = MARKS_START;
     ttypes = TTYPES_START;
     min_ans = MIN_ANS_START;
@@ -277,13 +395,14 @@ int main(int argc, char *argv[])
 
     srand(time(NULL));
     game_data = generate_game(ttypes, min_ans, rand());
+    game_data = generate_game(ttypes, min_ans, rand());
 
     // create a window to draw in
-    InitWindow(480, 520, "Krynth");
+    InitWindow(480, 600, "Krynth");
     SetTargetFPS(30);
 
 #ifdef __EMSCRIPTEN__
-    emscripten_set_main_loop(update, 60, 1);
+    emscripten_set_main_loop(update, 30, 1);
 #else
     while (!WindowShouldClose()) {
         update();

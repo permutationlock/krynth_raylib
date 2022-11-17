@@ -5,7 +5,7 @@
 
 #include "generator.h"
 
-#define SAMPLES 10000
+#define SAMPLES 100
 
 int main() {
     int good_clues1[CTYPES] = { 0 };
@@ -15,7 +15,7 @@ int main() {
     srand(clock());
     clock_t start = clock(), diff;
     for(int i = 0; i < SAMPLES; ++i) { 
-        game_data_t game = generate_game(7, 6, rand());
+        game_data_t game = generate_game(7, 8, rand());
         enum clue_type c1t = game.clue_type[0];
         enum clue_type c2t = game.clue_type[1];
         good_clues1[c1t] += 1;

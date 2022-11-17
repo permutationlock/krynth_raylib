@@ -5,7 +5,19 @@
 
 #include "generator.h"
 
-#define DECKSIZE (7 + 5 + 3 + 1)
+int brows = BROWS;
+int bcols = BCOLS;
+int bsize = BSIZE;
+int bu32size = BU32SIZE;
+
+void set_board_size(int n) {
+    brows = n;
+    bcols = n;
+    bsize = n * n;
+    bu32size = 1 + ((bsize - 1) / 32);
+}
+
+#define DECKSIZE (7 + 5 + 3 + 2 + 1)
 
 void generate_map(
     map_t* map, int ttypes, unsigned int seed
@@ -14,14 +26,15 @@ void generate_map(
     int tdeck[DECKSIZE] = { 0 };
 
     int j = 0;
-    for(int k = ttypes; k > 0; k -= 2) {
+    for(int k = ttypes; k > 0; k -= 1) {
         for(int t = 0; t < k; ++t) {
             tdeck[j] = t;
             j += 1;
         }
+        if(k > 3) k -= 1;
     }
 
-    srand(seed);
+    //srand(seed);
 
     int i = 0;
     for(; i < j; ++i) {
@@ -29,13 +42,13 @@ void generate_map(
         map->terrain[i] = tdeck[ti];
         tdeck[ti] = tdeck[j - 1 - i];
     }
-    for(; i < BSIZE; ++i) {
+    for(; i < bsize; ++i) {
         map->terrain[i] = rand() % ttypes;
     }
 }
 
 void add_near_rec(clue_t* clue, int r, int c, int n) {
-    int i = (r * BCOLS + c);
+    int i = (r * bcols + c);
     clue->data[i / 32] |= (1 << (i % 32));
     if(n > 0) {
         if(c > 0) {
@@ -44,18 +57,18 @@ void add_near_rec(clue_t* clue, int r, int c, int n) {
         if(r > 0) {
             add_near_rec(clue, r - 1, c, n - 1);
         }
-        if(c < BCOLS - 1) {
+        if(c < bcols - 1) {
             add_near_rec(clue, r, c + 1, n - 1);
         }
-        if(r < BROWS - 1) {
+        if(r < brows - 1) {
             add_near_rec(clue, r + 1, c, n - 1);
         }
     }
 }
 
 void add_near(clue_t* clue, int i, int n) { 
-    int c = i % BCOLS;
-    int r = i / BCOLS;
+    int c = i % bcols;
+    int r = i / bcols;
     add_near_rec(clue, r, c, n);
 }
 
@@ -63,7 +76,7 @@ void near_clue(
     clue_t* clue, const map_t* map, int terrain, int dist
 ) {
     memset(clue, 0, sizeof(clue_t));
-    for(int i = 0; i < BSIZE; ++i) {
+    for(int i = 0; i < bsize; ++i) {
         if(map->terrain[i] == terrain) {
             add_near(clue, i, dist);
         }
@@ -73,20 +86,20 @@ void near_clue(
 void add_clues(
     clue_t* res, const clue_t clue1, const clue_t clue2
 ) {
-    for(int i = 0; i < BU32SIZE; ++i) {
+    for(int i = 0; i < bu32size; ++i) {
         res->data[i] = (clue1.data[i] | clue2.data[i]);
     }
 }
 
 void negate_clue(clue_t* clue) {
-    for(int i=0; i < BU32SIZE; ++i) {
+    for(int i=0; i < bu32size; ++i) {
         clue->data[i] = ~(clue->data[i]);
     }
 }
 
 int get_answer_index(const clue_t clue) {
     int answer = 0, done = 0, count, pcount;
-    for(int k = 0; k < BU32SIZE; ++k) {
+    for(int k = 0; k < bu32size; ++k) {
         pcount = __builtin_popcount(clue.data[k]);
         count = __builtin_ctz(~(clue.data[k]));
         answer += count * (1 - done) * (1 - (pcount / 32));
@@ -133,10 +146,10 @@ void count_compatible_clues(
 
 void count_unique_answers(array_t* row_sums, const matrix_t* amatrix) {
     int answer, sum;
-    int aset[BSIZE + 1];
+    int aset[bsize + 1];
     for(int r = 0; r < amatrix->n; ++r) {
         sum = 0;
-        memset(aset, 0, (BSIZE + 1) * sizeof(int));
+        memset(aset, 0, (bsize + 1) * sizeof(int));
         for(int c = 0; c < amatrix->n; ++c) {
             answer = amatrix->data[r * amatrix->n + c] + 1;
             sum += 1 - aset[answer];
@@ -289,6 +302,36 @@ enum clue_type get_clue_type(int index) {
     }
 
     return IN_A_OR_B;
+}
+
+clue_data_t get_clue_data(int index) {
+    clue_data_t clue_data = { 0 };
+    clue_data.type = get_clue_type(index);
+    int modulus = (int) clue_data.type * TTYPES;
+    if(modulus > 0) {
+        index = index % modulus;
+    }
+    if(clue_data.type != IN_A_OR_B) {
+        clue_data.color1 = index;
+    } else {
+        int done = 0, sum = 0;
+        for(int i = 0; i < TTYPES; ++i) {
+            for(int j = i + 1; j < TTYPES; ++j) {
+                if(index == sum) {
+                    clue_data.color1 = i;
+                    clue_data.color2 = j;
+                    done = 1;
+                    break;
+                }
+                sum += 1;
+            }
+            if(done == 1) {
+                break;
+            }
+        }
+    }
+    
+    return clue_data;
 }
 
 /*
@@ -486,7 +529,7 @@ game_data_t generate_game(int ttypes, int min_ans, int seed) {
     clue_list_t clist;
     clue_pair_t gcp_data[MAXGCP];
     clue_pair_list_t gcps = { 0, gcp_data };
-    srand(seed);
+    //srand(seed);
 
     while(gcps.size == 0) {
 #ifdef DEBUG
@@ -527,8 +570,10 @@ game_data_t generate_game(int ttypes, int min_ans, int seed) {
     int index = indices[cti][rand() % found[cti]];
 
     g.clue[0] = clist.clue[gcps.cpair[index].clue1];
+    g.clue_index[0] = gcps.cpair[index].clue1;
     g.clue_type[0] = get_clue_type(gcps.cpair[index].clue1);
     g.clue[1] = clist.clue[gcps.cpair[index].clue2];
+    g.clue_index[1] = gcps.cpair[index].clue2;
     g.clue_type[1] = get_clue_type(gcps.cpair[index].clue2);
     g.answer = gcps.cpair[index].answer;
 

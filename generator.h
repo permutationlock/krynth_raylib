@@ -8,8 +8,8 @@
 #define TTYPES 7
 #define NCLUES 63
 #define AMSIZE NCLUES * NCLUES
-#define MAXGCP 16
-#define MINANS 6
+#define MAXGCP 32
+#define MINANS 8
 
 #define MAX(x, y) (((x) > (y)) ? (x) : (y))
 #define MIN(x, y) (((x) < (y)) ? (x) : (y))
@@ -35,6 +35,16 @@ enum clue_type {
     WITHIN_1 = 5,
     IN_A_OR_B = 6
 };
+
+struct clue_data_t {
+    enum clue_type type;
+    int color1;
+    int color2;
+};
+
+typedef struct clue_data_t clue_data_t;
+
+void set_board_size(int n);
 
 struct clue_t {
     unsigned int data[BU32SIZE];
@@ -85,6 +95,7 @@ typedef struct clue_pair_list_t clue_pair_list_t;
 
 struct game_data_t {
     map_t map;
+    int clue_index[2];
     enum clue_type clue_type[2];
     clue_t clue[2];
     int answer;
@@ -136,6 +147,8 @@ void generate_difference_matrix(
 );
 
 enum clue_type get_clue_type(int index);
+
+clue_data_t get_clue_data(int index);
 
 void generate_clues(clue_list_t* clist, int ttypes, const map_t* map);
 

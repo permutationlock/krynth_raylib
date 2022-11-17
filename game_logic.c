@@ -12,18 +12,11 @@ int update_game(
         & (1 << (ask % 32));
 
     if(rval == 0) {
-        int aval = gdata->clue[player].data[ask / 32]
-            & (1 << (ask % 32));
-
-        if(aval != 0) {
-            return 0;
-        }
-
         if(ask == gdata->answer) {
             gstate->state = ((gstate->turn % 2) == 0) ? 2 : 1;
-        } else {
+        }/* else {
             gstate->state = ((gstate->turn % 2) == 0) ? 1 : 2;
-        }
+        }*/
     }
 
     if(gstate->marks[ask][opponent] != 0) {
