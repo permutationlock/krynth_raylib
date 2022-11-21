@@ -14,15 +14,16 @@ int main() {
 
     srand(clock());
     clock_t start = clock(), diff;
+    set_board_size(7);
     for(int i = 0; i < SAMPLES; ++i) { 
-        game_data_t game = generate_game(7, 8, rand());
-        enum clue_type c1t = game.clue_type[0];
-        enum clue_type c2t = game.clue_type[1];
+        game_data_t game = generate_game(7, 6, rand());
+        enum clue_type c1t = game.clue_data[0].type;
+        enum clue_type c2t = game.clue_data[1].type;
         good_clues1[c1t] += 1;
         good_clues2[c2t] += 1;
         if(c1t >= c2t) {
             c1t = c2t;
-            c2t = game.clue_type[0];
+            c2t = game.clue_data[0].type;
         }
         good_clue_pairs[c1t][c2t] += 1;
     }

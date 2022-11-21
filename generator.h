@@ -95,8 +95,7 @@ typedef struct clue_pair_list_t clue_pair_list_t;
 
 struct game_data_t {
     map_t map;
-    int clue_index[2];
-    enum clue_type clue_type[2];
+    clue_data_t clue_data[2];
     clue_t clue[2];
     int answer;
 };
@@ -125,7 +124,9 @@ void negate_clue(clue_t* clue);
 int get_answer_index(const clue_t clue);
 
 void generate_answer_matrix(
-    matrix_t* amatrix, const clue_list_t* clist
+    matrix_t* amatrix,
+    const clue_list_t* clist,
+    const array_t* vclist
 );
 
 void count_compatible_clues(

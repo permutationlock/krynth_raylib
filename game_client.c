@@ -12,8 +12,8 @@
 #include "game_logic.h"
 
 #define BSIZE_START 3
-#define MARKS_START 6
-#define MARKS_GAIN 5
+#define MARKS_START 5
+#define MARKS_GAIN 6
 #define MIN_ANS_START 2
 #define TTYPES_START 3
 
@@ -101,9 +101,9 @@ void drawTerrain(Vector2 v, int radius, int terrain) {
     }
 }
 
-int drawClueDescription(int clue, int starty) {
-    clue_data_t clue_data = get_clue_data(clue);
-    int y = starty + 15, fsize = 20, radius = 25, width = 60;
+int drawClueDescription(int player, int starty) {
+    clue_data_t clue_data = game_data.clue_data[player];
+    int y = starty + 18, fsize = 20, radius = 25, width = 60;
     if(clue_data.type != IN_A_OR_B) {
         int x = 60;
         int not = 0, dist = 0;
@@ -127,7 +127,7 @@ int drawClueDescription(int clue, int starty) {
         sprintf(color_buff, " within %d of", dist);
         DrawText(color_buff, x, y, fsize, BLACK);
         x += MeasureText(color_buff, fsize);
-        Vector2 sv = { x + (width / 2), y + radius - 12 };
+        Vector2 sv = { x + (width / 2), y + radius - 15 };
         drawTerrain(sv, radius, clue_data.color1);
     } else { 
         int x = 80;
@@ -135,7 +135,7 @@ int drawClueDescription(int clue, int starty) {
         const char* or_str = "or";
         DrawText(in_str, x, y, fsize, BLACK);
         x += MeasureText(in_str, fsize);
-        Vector2 sv = { x + (width / 2), y + radius - 12 };
+        Vector2 sv = { x + (width / 2), y + radius - 15 };
         drawTerrain(sv, radius, clue_data.color1);
         x += width;
         DrawText(or_str, x, y, fsize, BLACK);
@@ -300,13 +300,13 @@ void drawEndMessage(int y) {
 
 int drawGUI(int starty) {
     if(game_state.state != 0) {
-        drawClueDescription(game_data.clue_index[1], starty);
+        drawClueDescription(1, starty);
     } else {
         char slevel[32] = { 0 }, smarks[32] = { 0 };
         sprintf(slevel, "level: %d", level + 1);
         sprintf(smarks, "marks: %d", marks);
-        DrawText(slevel, 25, starty + 15, 20, BLACK);
-        DrawText(smarks, 360, starty + 15, 20, BLACK);
+        DrawText(slevel, 25, starty + 18, 20, BLACK);
+        DrawText(smarks, 360, starty + 18, 20, BLACK);
     }
     return 60;
 }
@@ -316,6 +316,7 @@ void readInput(int starty) {
     int y = GetMouseY() - starty;
     if(y < 0) y = -1;
     else y /= cwidth;
+
     int i = y * bcols + x;
     if(IsMouseButtonDown(MOUSE_BUTTON_LEFT) == 1) {
         if((x >= 0 && x < bcols) && (y >= 0 && y < brows)) {
@@ -325,7 +326,7 @@ void readInput(int starty) {
                         if(getClue(i, 0) != 0) {
                             marks -= 1;
                         } else {
-                            marks -= 2;
+                            marks -= 3;
                         }
                         update_game(&game_state, i, &game_data);
                         if(game_state.state == 2) {
@@ -357,11 +358,25 @@ void readInput(int starty) {
 
                     memset(&game_state, 0, sizeof(game_state_t));
                     game_data = generate_game(ttypes, min_ans, rand());
+#ifdef DEBUG
+                    printf("game:\n");
+                    printf("\tclue1: %8x%8x\n", game_data.clue[0].data[1], game_data.clue[0].data[0]);
+                    printf("\ttype1: %d\n", game_data.clue_data[0].type);
+                    printf("\tclue2: %8x%8x\n", game_data.clue[1].data[1], game_data.clue[1].data[0]);
+                    printf("\ttype2: %d\n", game_data.clue_data[1].type);
+                    printf(
+                        "\tcombined: %8x%8x\n",
+                        game_data.clue[0].data[1] | game_data.clue[1].data[1],
+                        game_data.clue[0].data[0] | game_data.clue[1].data[0]
+                    );
+                    printf("\tanswer: %d\n", game_data.answer);
+#endif
                 }
             }
         }
         mouse_has_released = 0;
     }
+
     if(IsMouseButtonDown(MOUSE_BUTTON_LEFT) == 0) {
         mouse_has_released = 1;
     }
@@ -371,10 +386,9 @@ void drawFrame() {
     int y = 0;
     BeginDrawing();
     ClearBackground(RAYWHITE);
-    y += drawClueDescription(game_data.clue_index[0], y);
+    y += drawClueDescription(0, y);
     readInput(y);
     y += drawBoard(y);
-    printf("%d\n", y);
     y += drawGUI(y);
     drawEndMessage(290);
     EndDrawing();

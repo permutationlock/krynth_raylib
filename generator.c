@@ -17,7 +17,7 @@ void set_board_size(int n) {
     bu32size = 1 + ((bsize - 1) / 32);
 }
 
-#define DECKSIZE (7 + 5 + 3 + 2 + 1)
+#define DECKSIZE (7 + 7 + 5 + 3 + 2 + 1)
 
 void generate_map(
     map_t* map, int ttypes, unsigned int seed
@@ -26,12 +26,18 @@ void generate_map(
     int tdeck[DECKSIZE] = { 0 };
 
     int j = 0;
-    for(int k = ttypes; k > 0; k -= 1) {
+    for(int k = ttypes; k > 0; k -= 2) {
         for(int t = 0; t < k; ++t) {
             tdeck[j] = t;
             j += 1;
         }
-        if(k > 3) k -= 1;
+    }
+
+    if(bcols > 3) {
+        for(int t = 0; t < ttypes; ++t) {
+            tdeck[j] = t;
+            j += 1;
+        }
     }
 
     //srand(seed);
@@ -86,7 +92,7 @@ void near_clue(
 void add_clues(
     clue_t* res, const clue_t clue1, const clue_t clue2
 ) {
-    for(int i = 0; i < bu32size; ++i) {
+    for(int i = 0; i < BU32SIZE; ++i) {
         res->data[i] = (clue1.data[i] | clue2.data[i]);
     }
 }
@@ -99,7 +105,7 @@ void negate_clue(clue_t* clue) {
 
 int get_answer_index(const clue_t clue) {
     int answer = 0, done = 0, count, pcount;
-    for(int k = 0; k < bu32size; ++k) {
+    for(int k = 0; k < BU32SIZE; ++k) {
         pcount = __builtin_popcount(clue.data[k]);
         count = __builtin_ctz(~(clue.data[k]));
         answer += count * (1 - done) * (1 - (pcount / 32));
@@ -112,21 +118,25 @@ int get_answer_index(const clue_t clue) {
 }
 
 void generate_answer_matrix(
-    matrix_t* amatrix, const clue_list_t* clist
+    matrix_t* amatrix, const clue_list_t* clist, const array_t* vclist
 ) {
     memset(amatrix->data, -1, NCLUES * NCLUES * sizeof(int));
     clue_t total;
     int answer;
 
-    amatrix->n = NCLUES;
-    for(int i = 0; i < NCLUES; ++i) {
-        for(int j = i + 1; j < NCLUES; ++j) {
+    amatrix->n = vclist->size;
+    for(int i = 0; i < amatrix->n; ++i) {
+        for(int j = i + 1; j < amatrix->n; ++j) {
             memset(&total, 0, sizeof(clue_t));
-            add_clues(&total, clist->clue[i], clist->clue[j]);
+            add_clues(
+                    &total,
+                    clist->clue[vclist->data[i]],
+                    clist->clue[vclist->data[j]]
+                );
 
             answer = get_answer_index(total);
-            amatrix->data[i * NCLUES + j] = answer;
-            amatrix->data[j * NCLUES + i] = answer;
+            amatrix->data[i * amatrix->n + j] = answer;
+            amatrix->data[j * amatrix->n + i] = answer;
         }
     }
 }
@@ -284,6 +294,13 @@ void generate_clues(clue_list_t* clist, int ttypes, const map_t* map) {
             ++cn;
         }
     }
+    clue_t extra_space = { 0xffffffff, 0xffffffff };
+    for(int i = 0; i < bsize; ++i) {
+        extra_space.data[i / 32] = extra_space.data[i / 32] << 1;
+    }
+    for(int i = 0; i < NCLUES; ++i) {
+        add_clues(&(clist->clue[i]), clist->clue[i], extra_space);
+    }
 }
 
 enum clue_type get_clue_type(int index) {
@@ -394,6 +411,15 @@ int compute_max_answers_eliminated(
 }
 */
 
+int is_clue_subset(clue_t c1, clue_t c2) {
+    int is_subset = 1;
+    for(int i = 0; i < bu32size; ++i) {
+        if(c1.data[i] | c2.data[i] != c1.data[i]) {
+            is_subset = 0;
+        }
+    }
+}
+
 void compute_good_clue_pairs(
     clue_pair_list_t* good_pairs,
     const map_t* map,
@@ -411,7 +437,11 @@ void compute_good_clue_pairs(
     printf("generating answer matrix\n");
 #endif
 
-    generate_answer_matrix(&amatrix, clist);
+    vclist.size = NCLUES;
+    for(int i = 0; i < NCLUES; ++i) {
+        vclist.data[i] = i;
+    }
+    generate_answer_matrix(&amatrix, clist, &vclist);
 
 #ifdef DEBUG
     for(int i = 0; i < NCLUES; ++i) {
@@ -425,6 +455,7 @@ void compute_good_clue_pairs(
 #ifdef DEBUG
     printf("counting unique answers\n");
 #endif
+
     count_unique_answers(
         &acounts, &amatrix
     );
@@ -438,16 +469,22 @@ void compute_good_clue_pairs(
     printf("culling invalid clues\n");
 #endif
 
-    for(int i = 0; i < NCLUES; ++i) {
-        if(acounts.data[i] > 0) {
-            vclist.data[vclist.size] = i;
-            acounts.data[vclist.size] = acounts.data[i];
-            vclist.size += 1;
+    vclist.size = 0;
+    {
+        int min_ans_needed = 2;
+        //if(bcols < 5) min_ans_needed = 1;
+        for(int i = 0; i < NCLUES; ++i) {
+            if(acounts.data[i] >= min_ans_needed) {
+                vclist.data[vclist.size] = i;
+                acounts.data[vclist.size] = acounts.data[i];
+                vclist.size += 1;
+            }
         }
     }
 
-    acounts.size = vclist.size;
-    amatrix.n = vclist.size;
+
+    generate_answer_matrix(&amatrix, clist, &vclist);
+    count_unique_answers(&acounts, &amatrix);
 
 #ifdef DEBUG
     printf("acounts\t");
@@ -464,12 +501,15 @@ void compute_good_clue_pairs(
 
     printf("resizing answer matrix\n");
 #endif
+
+/*
     for(int i = 0; i < amatrix.n; ++i) {
         for(int j = 0; j < amatrix.n; ++j) {
             amatrix.data[i * amatrix.n + j] =
                 amatrix.data[vclist.data[i] * NCLUES + vclist.data[j]];
         }
     }
+*/
 /*
     printf("computing max answers eliminated\n");
     int max_elim[NCLUES];
@@ -487,6 +527,7 @@ void compute_good_clue_pairs(
 #ifdef DEBUG
     printf("computing good clue pairs\n");
 #endif
+
     good_pairs->size = 0;
     for(int r = 0; r < vclist.size; ++r) {
 #ifdef DEBUG
@@ -501,9 +542,12 @@ void compute_good_clue_pairs(
         }
 
         for(int c = 0; c < vclist.size; ++c) {
-            if(acounts.data[c] < 2) {
+            /*if(is_clue_subset(
+                clist->clue[vclist.data[c]],
+                clist->clue[vclist.data[r]]
+            )) {
                 continue;
-            }
+            }*/
 #ifdef DEBUG
             printf("\t\t%d: acounts = %d\n", c, acounts.data[c]);
 #endif
@@ -570,11 +614,9 @@ game_data_t generate_game(int ttypes, int min_ans, int seed) {
     int index = indices[cti][rand() % found[cti]];
 
     g.clue[0] = clist.clue[gcps.cpair[index].clue1];
-    g.clue_index[0] = gcps.cpair[index].clue1;
-    g.clue_type[0] = get_clue_type(gcps.cpair[index].clue1);
+    g.clue_data[0] = get_clue_data(gcps.cpair[index].clue1);
     g.clue[1] = clist.clue[gcps.cpair[index].clue2];
-    g.clue_index[1] = gcps.cpair[index].clue2;
-    g.clue_type[1] = get_clue_type(gcps.cpair[index].clue2);
+    g.clue_data[1] = get_clue_data(gcps.cpair[index].clue2);
     g.answer = gcps.cpair[index].answer;
 
     return g;
