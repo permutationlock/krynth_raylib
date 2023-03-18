@@ -12,15 +12,20 @@
 #include "game_logic.h"
 
 #define BSIZE_START 3
-#define MARKS_START 5
+#define MARKS_START 10
 #define MARKS_GAIN 6
 #define MIN_ANS_START 2
 #define TTYPES_START 3
+
+#define TRANSP_RWHITE   CLITERAL(Color){ 245, 245, 245, 180 }   // My own White (raylib logo)
 
 extern int brows;
 extern int bcols;
 extern int bsize;
 extern int bu32size;
+
+const int BWIDTHI = 2;
+const float BWIDTHF = (float) 2 * BWIDTHI;
 
 game_data_t game_data;
 game_state_t game_state;
@@ -30,7 +35,13 @@ int level, marks, ttypes, min_ans;
 int sradius = 25;
 int cwidth = 60;
 
+int mousex;
+int mousey;
+int cursorx;
+int cursory;
+int mouse_down;
 int mouse_has_released;
+int show_clue_list;
 
 void change_board_size(int n) {
     set_board_size(n);
@@ -75,6 +86,12 @@ void drawDiamond(Vector2 v, int radius) {
     DrawPoly(v, 4, radius-4, 45.0, VIOLET);
 }
 
+void drawBlank(Vector2 v, int radius) {
+    Vector2 s = { v.x - radius, v.y + radius / 2 };
+    Vector2 e = { v.x + radius, v.y + radius / 2 };
+    DrawLineEx(s, e, 2.0, DARKGRAY);
+}
+
 void drawTerrain(Vector2 v, int radius, int terrain) {
     switch(terrain) {
         case 0:
@@ -98,14 +115,14 @@ void drawTerrain(Vector2 v, int radius, int terrain) {
         case 6:
             drawDiamond(v, radius);
             break;
+        default:
+            drawBlank(v, radius);
     }
 }
 
-int drawClueDescription(int player, int starty) {
-    clue_data_t clue_data = game_data.clue_data[player];
-    int y = starty + 18, fsize = 20, radius = 25, width = 60;
+int drawClueDescription(clue_data_t clue_data, int starty) {
+    int x = 60, y = starty + 18, fsize = 20, radius = 25, width = 60;
     if(clue_data.type != IN_A_OR_B) {
-        int x = 60;
         int not = 0, dist = 0;
         if(clue_data.type == NOT_WITHIN_3) { not = 1; dist = 3; };
         if(clue_data.type == WITHIN_3) { not = 0; dist = 3; };
@@ -130,9 +147,8 @@ int drawClueDescription(int player, int starty) {
         Vector2 sv = { x + (width / 2), y + radius - 15 };
         drawTerrain(sv, radius, clue_data.color1);
     } else { 
-        int x = 80;
         const char* in_str = "the treasure is in";
-        const char* or_str = "or";
+        const char* or_str = "or in";
         DrawText(in_str, x, y, fsize, BLACK);
         x += MeasureText(in_str, fsize);
         Vector2 sv = { x + (width / 2), y + radius - 15 };
@@ -144,6 +160,24 @@ int drawClueDescription(int player, int starty) {
         drawTerrain(sv, radius, clue_data.color2);
     }
     return width;
+}
+
+void drawClueList(int starty) {
+    Vector2 topCorner = { 25, starty };
+    Vector2 square = { 480 - 50, 7 * 60 + 30 };
+    DrawRectangleV(topCorner, square, DARKGRAY);
+    topCorner.x += 4;
+    topCorner.y += 4;
+    square.x -= 8;
+    square.y -= 8;
+    DrawRectangleV(topCorner, square, RAYWHITE);
+    clue_data_t clue_data;
+    clue_data.color1 = -1;
+    clue_data.color2 = -1;
+    for(int i = 0; i < 7; ++i) {
+        clue_data.type = i;
+        drawClueDescription(clue_data, starty + 60 * i + 15);
+    }
 }
 
 void drawTile(int i, int value, int starty) {
@@ -188,48 +222,80 @@ int getClue(int i, int j) {
 void drawBorder(int i, int j, Color color, int starty) {
     if(getClue(i, j) == 0) {
         if(i % bcols == 0 || getClue(i - 1, j) != 0) {
+            int up_offset = 0;
+            int down_offset = 0;
+            if(getClue(i - bcols, j) == 0) {
+                up_offset = -BWIDTHI;
+            }
+            if(getClue(i + bcols, j) == 0) {
+                down_offset = -BWIDTHI;
+            }
             Vector2 start = {
-                (i % bcols) * cwidth,
-                starty + (i / bcols) * cwidth
+                (i % bcols) * cwidth + BWIDTHI,
+                starty + (i / bcols) * cwidth + up_offset
             };
             Vector2 end = {
-                (i % bcols) * cwidth,
-                starty + (i / bcols) * cwidth + cwidth
+                (i % bcols) * cwidth + BWIDTHI,
+                starty + (i / bcols) * cwidth + cwidth - down_offset
             };
-            DrawLineEx(start, end, 3.0, color);
+            DrawLineEx(start, end, BWIDTHF, color);
         }
         if(i % bcols == (bcols - 1) || getClue(i + 1, j) != 0) {
+            int up_offset = 0;
+            int down_offset = 0;
+            if(getClue(i - bcols, j) == 0) {
+                up_offset = -1 * BWIDTHI;
+            }
+            if(getClue(i + bcols, j) == 0) {
+                down_offset = -1 * BWIDTHI;
+            }
             Vector2 start = {
-                (i % bcols) * cwidth + cwidth,
-                starty + (i / bcols) * cwidth
+                (i % bcols) * cwidth + cwidth - BWIDTHI,
+                starty + (i / bcols) * cwidth + up_offset
             };
             Vector2 end = {
-                (i % bcols) * cwidth + cwidth,
-                starty + (i / bcols) * cwidth + cwidth
+                (i % bcols) * cwidth + cwidth - BWIDTHI,
+                starty + (i / bcols) * cwidth + cwidth - down_offset
             };
-            DrawLineEx(start, end, 3.0, color);
+            DrawLineEx(start, end, BWIDTHF, color);
         }
         if(i / bcols == 0 || getClue(i - bcols, j) != 0) {
+            int left_offset = 0;
+            int right_offset = 0;
+            if(getClue(i - 1, j) == 0) {
+                left_offset = -1 * BWIDTHI;
+            }
+            if(getClue(i + 1, j) == 0) {
+                right_offset = -1 * BWIDTHI;
+            }
             Vector2 start = {
-                (i % bcols) * cwidth,
-                starty + (i / bcols) * cwidth
+                (i % bcols) * cwidth + left_offset,
+                starty + (i / bcols) * cwidth + BWIDTHI
             };
             Vector2 end = {
-                (i % bcols) * cwidth + cwidth,
-                starty + (i / bcols) * cwidth
+                (i % bcols) * cwidth + cwidth - right_offset,
+                starty + (i / bcols) * cwidth + BWIDTHI
             };
-            DrawLineEx(start, end, 3.0, color);
+            DrawLineEx(start, end, BWIDTHF, color);
         }
         if(i / bcols == (brows - 1) || getClue(i + bcols, j) != 0) {
+            int left_offset = 0;
+            int right_offset = 0;
+            if(getClue(i - 1, j) == 0) {
+                left_offset = -1 * BWIDTHI;
+            }
+            if(getClue(i + 1, j) == 0) {
+                right_offset = -1 * BWIDTHI;
+            }
             Vector2 start = {
-                (i % bcols) * cwidth,
-                starty + (i / bcols) * cwidth + cwidth
+                (i % bcols) * cwidth + left_offset,
+                starty + (i / bcols) * cwidth + cwidth - BWIDTHI
             };
             Vector2 end = {
-                (i % bcols) * cwidth + cwidth,
-                starty + (i / bcols) * cwidth + cwidth
+                (i % bcols) * cwidth + cwidth - right_offset,
+                starty + (i / bcols) * cwidth + cwidth - BWIDTHI
             };
-            DrawLineEx(start, end, 3.0, color);
+            DrawLineEx(start, end, BWIDTHF, color);
         }
     }
 }
@@ -243,14 +309,15 @@ int drawBoard(int starty) {
         Vector2 s = { cwidth, cwidth };
         if(getClue(i,0) == 0) {
             DrawRectangleV(v, s, LIGHTGRAY);
-        } else if(game_state.state != 0 && getClue(i, 1) == 0) {
-            DrawRectangleV(v, s, GRAY);
         }
     }
     {
-        int mx = GetMouseX(), my = GetMouseY() - starty;
+        int mx = cursorx, my = cursory - starty;
+        
         Vector2 v, s = { cwidth, cwidth };
-        if(my >= 0 && my < bcols * cwidth) {
+        if(my >= 0 && my < bcols * cwidth
+                && mx >= 0 && mx < brows * cwidth
+        ) {
             v.x = cwidth * (mx / cwidth);
             v.y = starty + cwidth * (my / cwidth);
             DrawRectangleV(v, s, BEIGE);
@@ -268,11 +335,15 @@ int drawBoard(int starty) {
 
     for(int i = 0; i < bsize; ++i) {
         drawBorder(i, 0, DARKGRAY, starty);
-        if(game_state.state != 0) {
+        /*if(game_state.state != 0) {
             drawBorder(i, 1, DARKGRAY, starty);
-        }
+        }*/
         drawTile(i, game_data.map.terrain[i], starty);
-        drawMark(i, game_state.marks[i][1], starty);
+        if(game_state.state != 0) {
+            drawMark(i, getClue(i, 1) == 0 ? -1 : 1, starty);
+        } else {
+            drawMark(i, game_state.marks[i][1], starty);
+        }
     }
     return brows * cwidth;
 }
@@ -292,7 +363,7 @@ void drawEndMessage(int y) {
     int width = MeasureText(str, 20);
     Vector2 v = { x - 2, y - 2 };
     Vector2 sq = { width + 4, 20 + 3 };
-    DrawRectangleV(v, sq, RAYWHITE); 
+    DrawRectangleV(v, sq, TRANSP_RWHITE); 
     DrawText(
         str, x, y, 20, BLACK
     );
@@ -300,25 +371,67 @@ void drawEndMessage(int y) {
 
 int drawGUI(int starty) {
     if(game_state.state != 0) {
-        drawClueDescription(1, starty);
+        drawClueDescription(game_data.clue_data[1], starty);
     } else {
         char slevel[32] = { 0 }, smarks[32] = { 0 };
         sprintf(slevel, "level: %d", level + 1);
         sprintf(smarks, "marks: %d", marks);
         DrawText(slevel, 25, starty + 18, 20, BLACK);
         DrawText(smarks, 360, starty + 18, 20, BLACK);
+
+
+        Color clist_color = BLACK;
+        int bwidth = MeasureText("clue list", 20) + 12;
+        int bheight = 40;
+        int bx = 240 - bwidth / 2, by = starty + 12;
+        {
+            int mx = cursorx, my = cursory;
+            if(
+                mx > bx && my > by &&
+                mx < bx + bwidth && my < by + bheight
+            ) {
+                show_clue_list = 1;
+                clist_color = DARKGRAY;
+            } else {
+                show_clue_list = 0;
+            }
+        }
+        /*Vector2 topCorner = { bx, by };
+        Vector2 square = { bwidth, bheight };
+        DrawRectangleV(topCorner, square, DARKGRAY);
+        topCorner.x += 2;
+        topCorner.y += 2;
+        square.x -= 4;
+        square.y -= 4;
+        DrawRectangleV(topCorner, square, RAYWHITE);*/
+        DrawText("clue list", bx + 6, by + 8, 20, clist_color);
     }
     return 60;
 }
 
 void readInput(int starty) {
-    int x = GetMouseX() / cwidth;
-    int y = GetMouseY() - starty;
+    mouse_down = IsMouseButtonDown(MOUSE_BUTTON_LEFT);
+    if(GetGestureDetected() > 0) {
+        cursorx = GetTouchX();
+        cursory = GetTouchY();
+        mouse_down = 1;
+    } else if(GetMouseX() != mousex || GetMouseY() != mousey) {
+        mousex = GetMouseX();
+        mousey = GetMouseY();
+        cursorx = mousex;
+        cursory = mousey;
+    }
+
+    int mx = cursorx;
+    int my = cursory;
+
+    int x = mx / cwidth;
+    int y = my - starty;
     if(y < 0) y = -1;
     else y /= cwidth;
 
     int i = y * bcols + x;
-    if(IsMouseButtonDown(MOUSE_BUTTON_LEFT) == 1) {
+    if(mouse_down > 0) {
         if((x >= 0 && x < bcols) && (y >= 0 && y < brows)) {
             if(mouse_has_released == 1) {
                 if(game_state.state == 0) {
@@ -377,7 +490,7 @@ void readInput(int starty) {
         mouse_has_released = 0;
     }
 
-    if(IsMouseButtonDown(MOUSE_BUTTON_LEFT) == 0) {
+    if(mouse_down == 0) {
         mouse_has_released = 1;
     }
 }
@@ -386,11 +499,14 @@ void drawFrame() {
     int y = 0;
     BeginDrawing();
     ClearBackground(RAYWHITE);
-    y += drawClueDescription(0, y);
+    y += drawClueDescription(game_data.clue_data[0], y);
     readInput(y);
     y += drawBoard(y);
     y += drawGUI(y);
-    drawEndMessage(290);
+    drawEndMessage(264);
+    if(show_clue_list == 1) {
+        drawClueList(75);
+    }
     EndDrawing();
 }
 
@@ -404,16 +520,26 @@ int main(int argc, char *argv[]) {
     marks = MARKS_START;
     ttypes = TTYPES_START;
     min_ans = MIN_ANS_START;
+    show_clue_list = 0;
+    mousex = -1;
+    mousey = -1;
+    cursorx = -1;
+    cursory = -1;
+    mouse_down = 0;
+    mouse_has_released = 0;
 
     SetTraceLogLevel(LOG_NONE);
+    SetGesturesEnabled(GESTURE_TAP);
 
     srand(time(NULL));
     game_data = generate_game(ttypes, min_ans, rand());
     game_data = generate_game(ttypes, min_ans, rand());
 
     // create a window to draw in
-    InitWindow(480, 600, "Krynth");
+    InitWindow(480, 600, "Krynth - A deduction game by Aven Bross");
     SetTargetFPS(30);
+
+    SetExitKey(1);
 
 #ifdef __EMSCRIPTEN__
     emscripten_set_main_loop(update, 30, 1);

@@ -411,15 +411,6 @@ int compute_max_answers_eliminated(
 }
 */
 
-int is_clue_subset(clue_t c1, clue_t c2) {
-    int is_subset = 1;
-    for(int i = 0; i < bu32size; ++i) {
-        if(c1.data[i] | c2.data[i] != c1.data[i]) {
-            is_subset = 0;
-        }
-    }
-}
-
 void compute_good_clue_pairs(
     clue_pair_list_t* good_pairs,
     const map_t* map,
