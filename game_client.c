@@ -529,6 +529,7 @@ int main(int argc, char *argv[]) {
     mouse_has_released = 0;
 
     SetTraceLogLevel(LOG_NONE);
+    SetConfigFlags(FLAG_MSAA_4X_HINT);
     SetGesturesEnabled(GESTURE_TAP);
 
     srand(time(NULL));
