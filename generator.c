@@ -539,6 +539,10 @@ void compute_good_clue_pairs(
             )) {
                 continue;
             }*/
+
+            if(acounts.data[c] < min_ans) {
+                continue;
+            }
 #ifdef DEBUG
             printf("\t\t%d: acounts = %d\n", c, acounts.data[c]);
 #endif
@@ -611,5 +615,84 @@ game_data_t generate_game(int ttypes, int min_ans, int seed) {
     g.answer = gcps.cpair[index].answer;
 
     return g;
+}
+
+board_w_clues_t generate_board_w_clues(int ttypes, int min_ans, int min_ga, int min_ppa, int min_unique, int min_gcp, int seed) {
+    board_w_clues_t bwc = { 0 };
+    clue_list_t clist;
+    clue_pair_list_t gcps = { 0, bwc.good_clue_pairs };
+    //srand(seed);
+
+    while(bwc.unique_clues < min_unique || bwc.npairs < min_gcp || bwc.answers[min_ga - 1] < min_ppa) {
+#ifdef DEBUG
+        printf("generating map\n");
+#endif
+        generate_map(&(bwc.map), ttypes, rand());
+#ifdef DEBUG
+        printf("generating clues\n");
+#endif
+        generate_clues(&clist, ttypes, &(bwc.map));
+        compute_good_clue_pairs(
+            &gcps,
+            &(bwc.map),
+            &clist,
+            min_ans
+        );
+
+        for(int i = 0; i < MAXPPA; ++i) {
+            bwc.answers[i] = 0;
+        }
+        bwc.npairs = gcps.size;
+        bwc.unique_clues = 0;
+        int answers[BSIZE] = { 0 };
+        int clues_used[NCLUES] = { 0 };
+        for(int i = 0; i < gcps.size; ++i) {
+            answers[gcps.cpair[i].answer] += 1;
+            for(int j = 0; j < 2; ++j) {
+                int c = ((int*)&(gcps.cpair[i]))[j];
+                if(clues_used[c] == 0) {
+                    bwc.unique_clues += 1;
+                    clues_used[c] = 1;
+                }
+            }
+        }
+        for(int i = 0; i < BSIZE; ++i) {
+            for(int j = 0; j < MAXPPA; ++j) {
+                if(answers[i] > j) {
+                    bwc.answers[j] += 1;
+                }
+            }
+        }
+    }
+#ifdef DEBUG
+    printf("organizing game data\n");
+#endif
+/*
+    int ntypes = 0;
+    int clue_types[CTYPES * CTYPES] = { 0 };
+    int indices[CTYPES * CTYPES][MAXGCP] = { 0 }, found[CTYPES * CTYPES] = { 0 };
+    for(int i = 0; i < gcps.size; ++i) {
+        int c = get_clue_type(gcps.cpair[i].clue1);
+        int r = get_clue_type(gcps.cpair[i].clue2);
+        int d = c * CTYPES + r;
+        if(found[d] == 0) {
+            clue_types[ntypes] = d;
+            ntypes += 1;
+        }
+        indices[d][found[d]] = i;
+        found[d] += 1;
+    }
+
+    int cti = clue_types[rand() % ntypes];
+    int index = indices[cti][rand() % found[cti]];
+
+    g.clue[0] = clist.clue[gcps.cpair[index].clue1];
+    g.clue_data[0] = get_clue_data(gcps.cpair[index].clue1);
+    g.clue[1] = clist.clue[gcps.cpair[index].clue2];
+    g.clue_data[1] = get_clue_data(gcps.cpair[index].clue2);
+    g.answer = gcps.cpair[index].answer;
+*/
+
+    return bwc;
 }
 

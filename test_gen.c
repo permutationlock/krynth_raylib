@@ -32,7 +32,7 @@ int main() {
     printf("Generated %d sample games:\n\n", SAMPLES);
 
     int msec = diff * 1000 / CLOCKS_PER_SEC;
-    printf("Time taken per 100 samples: %d\n\n", msec/(SAMPLES / 100));
+    printf("Time taken per 100 samples: %f\n\n", msec/(SAMPLES / 100.0));
 
     printf("Good clues by type:\n");
     for(int i = 0; i < CTYPES; ++i) {

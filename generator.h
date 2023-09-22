@@ -10,6 +10,7 @@
 #define AMSIZE NCLUES * NCLUES
 #define MAXGCP 32
 #define MINANS 8
+#define MAXPPA 8
 
 #define MAX(x, y) (((x) > (y)) ? (x) : (y))
 #define MIN(x, y) (((x) < (y)) ? (x) : (y))
@@ -102,6 +103,13 @@ struct game_data_t {
 
 typedef struct game_data_t game_data_t;
 
+typedef struct {
+    map_t map;
+    clue_pair_t good_clue_pairs[MAXGCP];
+    int answers[MAXPPA];
+    int npairs, unique_clues;
+} board_w_clues_t;
+
 
 // functions
 
@@ -169,5 +177,7 @@ void compute_good_clue_pairs(
 );
 
 game_data_t generate_game(int ttypes, int min_ans, int seed);
+
+board_w_clues_t generate_board_w_clues(int ttypes, int min_ans, int min_ga, int min_ppa, int min_unique, int min_gcp, int seed);
 
 #endif // KRYNTH_GENERATOR_HPP
